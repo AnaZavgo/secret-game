@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
 <meta name="color-scheme" content="light">
 <meta name="theme-color" content="#fafaf9">
 <title>Поиграем?</title>
@@ -288,7 +289,7 @@ let seatRef = null;
 
 /* The true-answer positions and the secret never leave this phone until they are won. */
 function loadVault() { try { const v = JSON.parse(localStorage.getItem("ssz-vault-" + GID) || "null"); return v && Array.isArray(v.truthIdx) ? v : null; } catch (e) { return null; } }
-function saveVault(v) { try { localStorage.setItem("ssz-vault-" + GID, JSON.stringify(v)); } catch (e) {} vault = v; }
+function saveVault(v) { try { localStorage.setItem("ssz-vault-" + GID, JSON.stringify(v)); } catch (e) {} vault = v; if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); }
 
 /* Load the Supabase client from the first CDN that answers. */
 async function loadSupabase() {
@@ -306,9 +307,9 @@ function renderLanding() {
   document.getElementById("app").innerHTML = `
   <section class="lead enter">
     <h1>Поиграем?</h1>
-    <p class="hint">Игра для двоих. Угадывай ответы, ставь фишки и выигрывай кусочки чужого секрета.</p>
+    <p class="hint">Игра на двоих. Угадываешь ответы, ставишь фишки и по кусочкам вытягиваешь чужой секрет.</p>
     <button class="btn hot" type="button" id="create">Создать игру</button>
-    <p class="note">Ты получишь приватную ссылку. Отправь её одному человеку.</p>
+    <p class="note">Появится ссылка. Скинь её тому, с кем играешь, и больше никому.</p>
   </section>`;
   document.getElementById("create").addEventListener("click", () => { location.hash = "g-" + newGameId(); location.reload(); });
 }
@@ -438,26 +439,27 @@ function field(k, label, o = {}) {
 
 function rules() {
   return `<details><summary>Правила</summary><ol>
-    <li>5 раундов, вопросы с каждым разом смелее. У каждого на старте ${START} фишек.</li>
-    <li>На свой вопрос ты пишешь правду и два ложных ответа. Второй игрок видит все три вперемешку.</li>
-    <li>Второй игрок выбирает вариант и ставит фишки. Верный выбор: плюс двойная ставка и кусочек твоего секрета, а ты получаешь 1 фишку, потому что тебя поняли. Промах: ставка уходит тебе.</li>
-    <li>Ходы закрыты, пока оба не поставят. Потом раунд вскрывается одновременно.</li>
-    <li>Финальный раунд ва-банк: ставка до 10 и выигрыш тройной.</li>
-    <li>Один пас за игру: пропусти раунд без ставки.</li>
-    <li>В конце у кого меньше фишек, тот открывает секрет целиком. Ничья: открываются оба. Сдаться можно в любой момент.</li>
+    <li>5 раундов, вопросы всё смелее. На старте у каждого ${START} фишек.</li>
+    <li>На каждый вопрос пишешь правду и две выдумки. Второй игрок видит всё вперемешку.</li>
+    <li>Второй игрок выбирает ответ и ставит фишки. Попал в правду: получает двойную ставку и кусочек твоего секрета, а тебе идёт 1 фишка за то, что тебя поняли. Мимо: ставка твоя.</li>
+    <li>Пока оба не походят, ходов не видно. Потом раунд открывается у обоих.</li>
+    <li>Последний раунд ва-банк: ставка до 10, выигрыш тройной.</li>
+    <li>Один раз за игру можно сказать пас и не ставить.</li>
+    <li>У кого в конце меньше фишек, тот показывает весь секрет. При ничьей показывают оба. Сдаться можно когда угодно.</li>
+    <li>Таймеров нет. Ходи, когда удобно, ход сохранится.</li>
   </ol></details>`;
 }
 
 function screen() {
   document.getElementById("rtag").textContent = "";
-  if (err) return `<section class="lead enter"><h1>Стол закрыт</h1><p class="hint">${esc(err)}</p></section>`;
+  if (err) return `<section class="lead enter"><h1>Не открывается</h1><p class="hint">${esc(err)}</p></section>`;
   if (!loaded || !vaultLoaded) return `<div aria-busy="true"><div class="skeleton"><i></i><i></i><i></i></div><span class="sr">Загрузка…</span></div>`;
   const m = docs[me], others = Object.keys(docs).filter(id => id !== me);
   if (!m) {
-    if (others.length >= 2) return `<section class="lead"><h1>Стол занят</h1><p class="hint">Здесь уже играют двое.</p></section>`;
+    if (others.length >= 2) return `<section class="lead"><h1>Тут уже играют</h1><p class="hint">В этой игре уже двое.</p></section>`;
     return setup();
   }
-  if (!vault) return `<section class="lead"><h1>Тайник не найден</h1><p class="hint">Твои карты хранятся только на устройстве, с которого ты ${gf(m, "сел", "села")} за стол. Открой ссылку там, в том же браузере.</p></section>`;
+  if (!vault) return `<section class="lead"><h1>Твоих ответов тут нет</h1><p class="hint">Они лежат только на том устройстве и в том браузере, где ты их ${gf(m, "писал", "писала")}. Открой ссылку там.</p></section>`;
   if (!opp()) return waiting();
   return game();
 }
@@ -468,37 +470,37 @@ function setup() {
     <div class="qblock">
       <div class="qnum">${isFinal(i) ? "Ва-банк" : `Раунд ${i + 1}`}</div>
       <div class="qtitle">${esc(qText(i, { g: drafts.g }))}</div>
-      ${field(`t${i}`, "Правда", { cls: "true-lbl", ph: "Твой честный ответ…" })}
-      ${field(`d${i}a`, "Ложный ответ", { cls: "decoy-lbl", ph: "Правдоподобная ложь…" })}
-      ${field(`d${i}b`, "Ещё один ложный", { cls: "decoy-lbl", ph: "И ещё одна…" })}
+      ${field(`t${i}`, "Правда", { cls: "true-lbl", ph: "Как есть…" })}
+      ${field(`d${i}a`, "Выдумка", { cls: "decoy-lbl", ph: "Что-то похожее на правду…" })}
+      ${field(`d${i}b`, "Ещё выдумка", { cls: "decoy-lbl", ph: "И ещё что-нибудь…" })}
     </div>`).join("");
   const ls = LAYERS.map((l, i) => field("l" + i, `${i + 1}. ${l}`, { ph: LAYER_HINTS[i], rows: i === 3 ? 5 : 1, max: 2000 })).join("");
   return `
   <section class="lead enter">
     <h1>Поиграем?</h1>
-    <p class="hint">${o ? `${esc(o.name)} уже за столом и ждёт тебя.` : "Угадывай ответы, ставь фишки и выигрывай кусочки чужого секрета."}</p>
+    <p class="hint">${o ? `${esc(o.name)} уже в игре и ждёт тебя.` : "Заполни всё один раз, дальше играем."}</p>
   </section>
   <form id="setup" novalidate>
     <section>
-      <h2>Кто за столом</h2>
+      <h2>Кто играет</h2>
       ${field("name", "Имя", { input: true, max: 30, ph: "Как тебя называть…" })}
-      <div class="field"><span class="flbl" id="g-l">Обращаться ко мне</span><div class="quick" role="radiogroup" aria-labelledby="g-l">
+      <div class="field"><span class="flbl" id="g-l">Как к тебе обращаться</span><div class="quick" role="radiogroup" aria-labelledby="g-l">
         <button type="button" class="chipbtn" role="radio" id="ctl-gm" data-act="gender" data-v="m" aria-checked="${drafts.g === "m"}" aria-pressed="${drafts.g === "m"}">Он</button>
         <button type="button" class="chipbtn" role="radio" id="ctl-gf" data-act="gender" data-v="f" aria-checked="${drafts.g === "f"}" aria-pressed="${drafts.g === "f"}">Она</button>
       </div></div>
-      ${field("label", "Что ты прячешь", { input: true, max: 30, ph: "Например: сон или стих…", help: "Второй игрок видит это с первого раунда. Содержание закрыто." })}
+      ${field("label", "Что ты прячешь", { input: true, max: 30, ph: "Например: сон или стих…", help: "Второй игрок видит только это слово. Что внутри, не видит." })}
     </section>
     <section>
-      <h2>Твои карты</h2>
-      <p class="hint">Пиши ложь, в которую поверит второй игрок. Каждый промах приносит тебе ставку.</p>
+      <h2>Твои ответы</h2>
+      <p class="hint">Пиши такую ложь, чтобы поверили. За каждый промах забираешь ставку.</p>
       ${blocks}
     </section>
     <section>
-      <h2>Твой секрет на кону</h2>
-      <p class="hint">Каждое попадание второго игрока открывает следующий кусочек.</p>
+      <h2>Твой секрет</h2>
+      <p class="hint">За каждый верный ответ второй игрок получает следующий кусочек.</p>
       ${ls}
       ${formErr ? `<p class="err" role="alert">${esc(formErr)}</p>` : ""}
-      <button class="btn hot" type="submit" ${view.busy === "join" ? "disabled" : ""}>${view.busy === "join" ? "Раздаю…" : "Сесть за стол"}</button>
+      <button class="btn hot" type="submit" ${view.busy === "join" ? "disabled" : ""}>${view.busy === "join" ? "Сохраняю…" : "Готово, играем"}</button>
     </section>
   </form>
   ${rules()}`;
@@ -508,11 +510,11 @@ function waiting() {
   const m = docs[me];
   return `
   <section class="lead enter">
-    <h1>Ставки сделаны, ${esc(m.name)}</h1>
-    <p class="hint">Отправь второму игроку эту ссылку. Игра начнётся, когда вы оба будете за столом.</p>
+    <h1>Ты в игре, ${esc(m.name)}</h1>
+    <p class="hint">Скинь эту ссылку второму игроку. Начнём, когда вы оба заполните ответы.</p>
     <div class="lot" style="margin-top:16px"><span style="overflow-wrap:anywhere">${esc(inviteLink())}</span></div>
     <button class="btn hot" type="button" data-act="copy">Скопировать ссылку</button>
-    <div class="status" role="status"><span class="pulse" aria-hidden="true"></span>Ждём соперника…</div>
+    <div class="status" role="status"><span class="pulse" aria-hidden="true"></span>Ждём второго игрока…</div>
   </section>
   ${rules()}`;
 }
@@ -585,12 +587,12 @@ function roundHtml(c) {
   let h = `<div class="table enter">
     ${lot}
     <div class="q">${esc(qText(i, o))}</div>
-    <p class="sub">${isFinal(i) ? "Финал. Ставка до 10, выигрыш тройной." : `Как ${gf(o, "ответил", "ответила")} ${esc(o.name)}? Одно из трёх правда.`}</p>`;
+    <p class="sub">${isFinal(i) ? "Последний раунд. Ставка до 10, выигрыш тройной." : `Как ${gf(o, "ответил", "ответила")} ${esc(o.name)}? Один вариант правда.`}</p>`;
   if (mp) {
     const myOpts = (m.options && m.options[i]) || [];
     h += `<div class="options">${opts.map((t, k) => `<div class="opt" aria-checked="${mp.idx === k}" role="presentation"><span class="k">${LETTERS[k]}</span><span class="t">${esc(t)}</span></div>`).join("")}</div>
-      <p class="note">${mp.pass ? `Ты ${gf(m, "спасовал", "спасовала")} в этом раунде.` : `Твоя ставка: ${mp.bet} на вариант ${LETTERS[mp.idx]}. Ход закрыт.`}</p>
-      <div class="status" role="status"><span class="pulse" aria-hidden="true"></span>${o.picks && o.picks[i] ? `Ждём вскрытия: ${esc(o.name)} откроет свои карты, когда зайдёт…` : `Ждём ставку: ${esc(o.name)}…`}</div></div>`;
+      <p class="note">${mp.pass ? `Ты ${gf(m, "спасовал", "спасовала")} в этом раунде.` : `Ты ${gf(m, "поставил", "поставила")} ${mp.bet} на ${LETTERS[mp.idx]}.`}</p>
+      <div class="status" role="status"><span class="pulse" aria-hidden="true"></span>${o.picks && o.picks[i] ? `Ждём, когда ${esc(o.name)} зайдёт: тогда раунд откроется…` : `Ждём, пока походит ${esc(o.name)}…`}</div></div>`;
     return h;
   }
   const pick = view.pick[i], max = maxBet(i, c.mc);
@@ -613,9 +615,9 @@ function roundHtml(c) {
     ${formErr ? `<p class="err" role="alert">${esc(formErr)}</p>` : ""}
     <div class="${c.myPassUsed ? "" : "row"}">
       ${c.myPassUsed ? "" : `<button class="btn ghost" type="button" data-act="pass" data-i="${i}" ${view.busy ? "disabled" : ""}>Пас</button>`}
-      <button class="btn hot" type="button" data-act="lock" data-i="${i}" ${view.busy ? "disabled" : ""}>${view.busy === "lock" ? "Ставлю…" : pick == null ? "Выбери карту" : `Иду на ${bet}. Карта ${LETTERS[pick]}`}</button>
+      <button class="btn hot" type="button" data-act="lock" data-i="${i}" ${view.busy ? "disabled" : ""}>${view.busy === "lock" ? "Ставлю…" : pick == null ? "Выбери ответ" : `Ставлю ${bet} на ${LETTERS[pick]}`}</button>
     </div>
-    ${c.myPassUsed ? "" : `<p class="note">Пас можно взять один раз за игру.</p>`}
+    ${c.myPassUsed ? "" : `<p class="note">Пас можно сказать один раз за игру.</p>`}
   </div>`;
   return h;
 }
@@ -625,9 +627,9 @@ function revealHtml(c, r) {
   if (view.reveal !== i) {
     return `<div class="table enter"><div class="sealed">
       <div class="q">${esc(qText(i, o))}</div>
-      <p class="sub">Оба хода сделаны. Карты рубашкой вверх. Сердце стучит.</p>
+      <p class="sub">Оба походили. Жми, посмотрим, кто кого.</p>
       <div class="big" aria-hidden="true">?!</div>
-      </div><button class="btn hot" type="button" id="ctl-open" data-act="open" data-i="${i}">Вскрыть раунд ${i + 1}</button></div>`;
+      </div><button class="btn hot" type="button" id="ctl-open" data-act="open" data-i="${i}">Открыть раунд ${i + 1}</button></div>`;
   }
   const oOpts = (o.options && o.options[i]) || [], mOpts = (m.options && m.options[i]) || [];
   const list = (opts, truth, pickIdx, pickerName) => opts.map((t, k) => {
@@ -640,9 +642,9 @@ function revealHtml(c, r) {
   const last = c.rounds.filter(x => x.done).length === ROUNDS && c.rounds.every(x => x.i === i || view.opened.includes(x.i));
   return `<div class="table enter">
     <div class="q">${esc(qText(i, o))}</div>
-    <div class="res-h">${gf(o, "Его", "Её")} карты. ${myLine}</div>
+    <div class="res-h">${gf(o, "Его", "Её")} ответы. ${myLine}</div>
     ${list(oOpts, r.ot, r.mp.pass ? -1 : r.mp.idx, "твой выбор")}
-    <div class="res-h">Твои карты. ${opLine}</div>
+    <div class="res-h">Твои ответы. ${opLine}</div>
     ${list(mOpts, r.mt, r.op.pass ? -1 : r.op.idx, gf(o, "его выбор", "её выбор"))}
     <div class="res-h">Итог раунда</div>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
@@ -655,8 +657,8 @@ function revealHtml(c, r) {
 
 function finishedHtml(c) {
   const o = c.o;
-  const v = c.mc > c.oc ? "Ты выигрываешь стол" : c.mc < c.oc ? `Стол за ${esc(o.name)}` : "Ничья";
-  const n = c.mc > c.oc ? `${esc(o.name)} открывает свой секрет целиком.` : c.mc < c.oc ? "Твой секрет открывается целиком." : "Открываются оба секрета.";
+  const v = c.mc > c.oc ? `Ты ${gf(c.m, "выиграл", "выиграла")}` : c.mc < c.oc ? `${gf(o, "Выиграл", "Выиграла")} ${esc(o.name)}` : "Ничья";
+  const n = c.mc > c.oc ? `${esc(o.name)} показывает весь секрет.` : c.mc < c.oc ? "Твой секрет теперь виден целиком." : "Оба секрета открыты.";
   return `<div class="table enter"><div class="round-tag">Счёт ${c.mc} : ${c.oc}</div><div class="verdict">${v}</div><p class="hint">${n}</p></div>`;
 }
 
@@ -673,16 +675,16 @@ document.addEventListener("submit", async e => {
   formErr = "";
   const v = k => (drafts[k] || "").trim();
   const name = v("name"), label = v("label");
-  if (!name) return fail("Напиши имя, под которым сядешь за стол.", "name");
+  if (!name) return fail("Напиши имя.", "name");
   if (!drafts.g) return fail("Выбери, как к тебе обращаться: он или она.", "");
   const options = {}, truthIdx = [];
   for (let i = 0; i < ROUNDS; i++) {
     const t = v("t" + i), a = v(`d${i}a`), b = v(`d${i}b`);
     if (!t) return fail(`Раунд ${i + 1}: напиши правду.`, "t" + i);
-    if (!a) return fail(`Раунд ${i + 1}: нужен ложный ответ.`, `d${i}a`);
-    if (!b) return fail(`Раунд ${i + 1}: нужен второй ложный ответ.`, `d${i}b`);
+    if (!a) return fail(`Раунд ${i + 1}: нужна выдумка.`, `d${i}a`);
+    if (!b) return fail(`Раунд ${i + 1}: нужна вторая выдумка.`, `d${i}b`);
     const low = [t, a, b].map(x => x.toLowerCase());
-    if (new Set(low).size < 3) return fail(`Раунд ${i + 1}: все три ответа должны различаться.`, `d${i}a`);
+    if (new Set(low).size < 3) return fail(`Раунд ${i + 1}: ответы не должны повторяться.`, `d${i}a`);
     const arr = [t, a, b];
     for (let k = arr.length - 1; k > 0; k--) { const j = Math.floor(Math.random() * (k + 1)); [arr[k], arr[j]] = [arr[j], arr[k]]; }
     options[i] = arr; truthIdx.push(arr.indexOf(t));
@@ -716,7 +718,7 @@ document.addEventListener("click", async e => {
       view.bet[i] = Math.min(max, Math.max(1, act === "bet" ? cur + +b.dataset.d : +b.dataset.v));
     }
     else if (act === "lock") {
-      if (view.pick[i] == null) { formErr = "Сначала выбери один из трёх вариантов."; }
+      if (view.pick[i] == null) { formErr = "Сначала выбери ответ."; }
       else {
         const max = maxBet(+i, c.mc), bet = Math.min(max, view.bet[i] || Math.min(isFinal(+i) ? 4 : 2, max));
         view.busy = "lock"; tick();
@@ -734,7 +736,7 @@ document.addEventListener("click", async e => {
 });
 
 function saveErr(x) {
-  if (x && x.code === "full") return "За этим столом уже сидят двое. Попроси новую ссылку.";
+  if (x && x.code === "full") return "В этой игре уже двое. Попроси новую ссылку.";
   return (x && x.code === "invalid_argument")
     ? "Ход не сохранился. Обнови страницу и попробуй ещё раз."
     : "Ход не сохранился. Проверь интернет и нажми ещё раз.";
@@ -748,7 +750,7 @@ function saveErr(x) {
   let supa;
   try {
     const createClient = await loadSupabase();
-    supa = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true, storageKey: "ssz-auth" } });
+    supa = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true, storageKey: "ssz-auth" }, global: { fetch: (u, o = {}) => fetch(u, { ...o, signal: o.signal || AbortSignal.timeout(20000) }) } } /* a request frozen by a sleeping phone must not block the buttons */);
     let { data: { session } } = await supa.auth.getSession();
     if (!session) { const r = await supa.auth.signInAnonymously(); if (r.error) throw r.error; session = r.data.session; }
     me = session.user.id;

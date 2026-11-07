@@ -57,7 +57,7 @@ async function seatTwo(browser, a = NASTYA, b = VLAD, optsB = {}) {
   const id = await createGame(A.page);
   await fillSetup(A.page, a);
   await submit(A.page);
-  await expect(A.page.locator('h1')).toContainText('Ставки сделаны');
+  await expect(A.page.locator('h1')).toContainText('Ты в игре');
   await B.page.goto(`/#g-${id}`);
   await fillSetup(B.page, b);
   await submit(B.page);
@@ -82,7 +82,7 @@ async function play(page, i, move) {
   if (move.pass) { await page.getByRole('button', { name: 'Пас', exact: true }).click(); return; }
   await page.locator('.opt[role=radio]', { hasText: move.text }).click();
   await setBet(page, move.bet);
-  await page.getByRole('button', { name: /^Иду на/ }).click();
+  await page.getByRole('button', { name: /^Ставлю/ }).click();
 }
 
 const chips = async page => [
@@ -92,7 +92,7 @@ const chips = async page => [
 const openPieces = page => page.locator('.secret .piece.open');
 
 async function openRound(page, i) {
-  await page.getByRole('button', { name: `Вскрыть раунд ${i + 1}` }).click();
+  await page.getByRole('button', { name: `Открыть раунд ${i + 1}` }).click();
   await expect(page.locator('.res-h').first()).toBeVisible();
 }
 const nextRound = (page, i) =>
@@ -155,15 +155,15 @@ test.describe('4.2 setup and joining', () => {
     expect(await focused()).toBe('t0');
     await page.fill('[data-k="t0"]', 'Да');
     await submit(page);
-    await expect(err).toContainText('нужен ложный ответ');
+    await expect(err).toContainText('нужна выдумка');
     expect(await focused()).toBe('d0a');
     await page.fill('[data-k="d0a"]', 'да');
     await submit(page);
-    await expect(err).toContainText('второй ложный');
+    await expect(err).toContainText('вторая выдумка');
     expect(await focused()).toBe('d0b');
     await page.fill('[data-k="d0b"]', 'ДА');
     await submit(page);
-    await expect(err).toContainText('должны различаться');
+    await expect(err).toContainText('не должны повторяться');
     await fillSetup(page, NASTYA);
     await page.fill('[data-k="l2"]', '');
     await submit(page);
@@ -179,7 +179,7 @@ test.describe('4.2 setup and joining', () => {
     const id = await createGame(A.page);
     await fillSetup(A.page, NASTYA);
     await submit(A.page);
-    await expect(A.page.locator('h1')).toContainText('Ставки сделаны, Настя');
+    await expect(A.page.locator('h1')).toContainText('Ты в игре, Настя');
     await A.page.getByRole('button', { name: 'Скопировать ссылку' }).click();
     await expect(A.page.getByRole('button', { name: 'Скопировано' })).toBeVisible();
     const link = await A.page.evaluate(() => navigator.clipboard.readText());
@@ -195,7 +195,7 @@ test.describe('4.2 setup and joining', () => {
     await C.page.goto(link);
     await fillSetup(C.page, { ...VLAD, name: 'Третий' });
     await submit(C.page);
-    await expect(C.page.locator('.err')).toContainText('За этим столом уже сидят двое');
+    await expect(C.page.locator('.err')).toContainText('В этой игре уже двое');
     const seats = await A.page.evaluate(async ([url, key, id]) => {
       const token = JSON.parse(localStorage.getItem('ssz-auth')).access_token;
       const r = await fetch(`${url}/rest/v1/ssz_players?game_id=eq.${id}&select=uid`, { headers: { apikey: key, Authorization: `Bearer ${token}` } });
@@ -254,13 +254,13 @@ test.describe('4.3 rounds and scoring', () => {
         await expect(a.locator('#ctl-plus')).toBeDisabled();
       }
       await play(a, i, r.a);
-      await expect(a.locator('.status')).toContainText('Ждём ставку: Влад');
+      await expect(a.locator('.status')).toContainText('Ждём, пока походит Влад');
       await play(b, i, r.b);
 
       // Sealed screen: the outcome must not show before "Вскрыть".
-      await expect(a.getByRole('button', { name: `Вскрыть раунд ${i + 1}` })).toBeVisible();
-      await expect(b.getByRole('button', { name: `Вскрыть раунд ${i + 1}` })).toBeVisible();
-      await expect(a.locator('.sealed')).toContainText('Оба хода сделаны');
+      await expect(a.getByRole('button', { name: `Открыть раунд ${i + 1}` })).toBeVisible();
+      await expect(b.getByRole('button', { name: `Открыть раунд ${i + 1}` })).toBeVisible();
+      await expect(a.locator('.sealed')).toContainText('Оба походили');
       expect(await chips(a), `round ${i + 1}: scoreboard stays at the old score on the sealed screen`).toEqual(before);
       expect(await chips(b), `round ${i + 1}: same on B`).toEqual([before[1], before[0]]);
       await expect(openPieces(a)).toHaveCount(i ? script[i - 1].pieces[0] : 0);
@@ -280,20 +280,20 @@ test.describe('4.3 rounds and scoring', () => {
       await expect(a.locator('.delta').nth(1)).toHaveText(`Влад ${delta(r.total[1] - before[1])}`);
 
       if (i === 0) {
-        await expect(a.locator('.res-h').first()).toHaveText('Его карты. Ты угадала.');
-        await expect(a.locator('.res-h').nth(1)).toHaveText('Твои карты. Влад купился на твою ложь.');
-        await expect(b.locator('.res-h').first()).toHaveText('Её карты. Ты ошибся.');
-        await expect(b.locator('.res-h').nth(1)).toHaveText('Твои карты. Настя угадала.');
+        await expect(a.locator('.res-h').first()).toHaveText('Его ответы. Ты угадала.');
+        await expect(a.locator('.res-h').nth(1)).toHaveText('Твои ответы. Влад купился на твою ложь.');
+        await expect(b.locator('.res-h').first()).toHaveText('Её ответы. Ты ошибся.');
+        await expect(b.locator('.res-h').nth(1)).toHaveText('Твои ответы. Настя угадала.');
       }
       if (i === 1) {
-        await expect(a.locator('.res-h').first()).toHaveText('Его карты. Ты ошиблась.');
-        await expect(b.locator('.res-h').first()).toHaveText('Её карты. Ты угадал.');
-        await expect(a.locator('.res-h').nth(1)).toHaveText('Твои карты. Влад угадал.');
-        await expect(b.locator('.res-h').nth(1)).toHaveText('Твои карты. Настя купилась на твою ложь.');
+        await expect(a.locator('.res-h').first()).toHaveText('Его ответы. Ты ошиблась.');
+        await expect(b.locator('.res-h').first()).toHaveText('Её ответы. Ты угадал.');
+        await expect(a.locator('.res-h').nth(1)).toHaveText('Твои ответы. Влад угадал.');
+        await expect(b.locator('.res-h').nth(1)).toHaveText('Твои ответы. Настя купилась на твою ложь.');
       }
       if (i === 2) {
-        await expect(a.locator('.res-h').first()).toHaveText('Его карты. Ты спасовала.');
-        await expect(b.locator('.res-h').nth(1)).toHaveText('Твои карты. Настя спасовала.');
+        await expect(a.locator('.res-h').first()).toHaveText('Его ответы. Ты спасовала.');
+        await expect(b.locator('.res-h').nth(1)).toHaveText('Твои ответы. Настя спасовала.');
       }
 
       expect(await chips(a), `round ${i + 1} on A`).toEqual(r.total);
@@ -310,10 +310,10 @@ test.describe('4.3 rounds and scoring', () => {
       before = r.total;
     }
 
-    await expect(b.locator('.verdict')).toHaveText('Ты выигрываешь стол');
-    await expect(b.locator('.table')).toContainText('Настя открывает свой секрет целиком');
-    await expect(a.locator('.verdict')).toHaveText('Стол за Влад');
-    await expect(a.locator('.table')).toContainText('Твой секрет открывается целиком');
+    await expect(b.locator('.verdict')).toHaveText('Ты выиграл');
+    await expect(b.locator('.table')).toContainText('Настя показывает весь секрет');
+    await expect(a.locator('.verdict')).toHaveText('Выиграл Влад');
+    await expect(a.locator('.table')).toContainText('Твой секрет теперь виден целиком');
     expect(a.errors.concat(b.errors)).toEqual([]);
     await A.ctx.close(); await B.ctx.close();
   });
@@ -364,7 +364,7 @@ test.describe('4.4 resilience', () => {
     state.origins.forEach(o => { o.localStorage = o.localStorage.filter(x => !x.name.startsWith('ssz-vault-')); });
     const noVault = await newContext(browser, { storageState: state });
     await noVault.page.goto(A.page.url());
-    await expect(noVault.page.locator('h1')).toHaveText('Тайник не найден');
+    await expect(noVault.page.locator('h1')).toHaveText('Твоих ответов тут нет');
     await noVault.ctx.close();
 
     // A really new browser is a new anonymous user, so it gets the setup form.
@@ -376,30 +376,55 @@ test.describe('4.4 resilience', () => {
 
     // A plays and leaves, so A's truth for this round stays unpublished.
     await play(A.page, 1, { text: decoyOf(VLAD, 1), bet: 1 });
-    await expect(A.page.locator('.status')).toContainText('Ждём ставку'); // the move is saved
+    await expect(A.page.locator('.status')).toContainText('Ждём, пока походит'); // the move is saved
     const gameUrl = A.page.url();
     await A.page.close();
     await play(B.page, 1, { text: truthOf(NASTYA, 1), bet: 2 });
-    await expect(B.page.locator('.status')).toContainText('Ждём вскрытия');
+    await expect(B.page.locator('.status')).toContainText('раунд откроется');
     const a2 = await A.ctx.newPage();
     await a2.goto(gameUrl);
-    await expect(a2.getByRole('button', { name: 'Вскрыть раунд 2' })).toBeVisible();
-    await expect(B.page.getByRole('button', { name: 'Вскрыть раунд 2' })).toBeVisible();
+    await expect(a2.getByRole('button', { name: 'Открыть раунд 2' })).toBeVisible();
+    await expect(B.page.getByRole('button', { name: 'Открыть раунд 2' })).toBeVisible();
     for (const p of [a2, B.page]) { await openRound(p, 1); await nextRound(p, 1); }
 
     // Network drop while locking a move.
     await a2.locator('.opt[role=radio]', { hasText: truthOf(VLAD, 2) }).click();
     await A.ctx.setOffline(true);
-    await a2.getByRole('button', { name: /^Иду на/ }).click();
+    await a2.getByRole('button', { name: /^Ставлю/ }).click();
     await expect(a2.locator('.err')).toContainText('Ход не сохранился');
     await A.ctx.setOffline(false);
-    await a2.getByRole('button', { name: /^Иду на/ }).click();
-    await expect(a2.locator('.status')).toContainText('Ждём ставку');
+    await a2.getByRole('button', { name: /^Ставлю/ }).click();
+    await expect(a2.locator('.status')).toContainText('Ждём, пока походит');
     await play(B.page, 2, { text: decoyOf(NASTYA, 2), bet: 1 });
-    await expect(a2.getByRole('button', { name: 'Вскрыть раунд 3' })).toBeVisible();
-    await expect(B.page.getByRole('button', { name: 'Вскрыть раунд 3' })).toBeVisible();
+    await expect(a2.getByRole('button', { name: 'Открыть раунд 3' })).toBeVisible();
+    await expect(B.page.getByRole('button', { name: 'Открыть раунд 3' })).toBeVisible();
     const [x, y] = await chips(a2);
     expect(await chips(B.page)).toEqual([y, x]);
+    await A.ctx.close(); await B.ctx.close();
+  });
+});
+
+test.describe('long gaps between moves', () => {
+  // What hours of a sleeping phone leave behind: a dead access token and a valid refresh token.
+  const expireSession = page => page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem('ssz-auth'));
+    s.expires_at = 1;
+    s.access_token = s.access_token.slice(0, -6) + 'xxxxxx';
+    localStorage.setItem('ssz-auth', JSON.stringify(s));
+  });
+
+  test('expired session, tab left open and reopened, different time zones', async ({ browser }) => {
+    const { A, B } = await seatTwo(browser, NASTYA, VLAD, { timezoneId: 'Asia/Tokyo' });
+    await expireSession(A.page);
+    await play(A.page, 0, { text: truthOf(VLAD, 0), bet: 2 });
+    await expect(A.page.locator('.status')).toContainText('Ждём, пока походит');
+    await expireSession(B.page);
+    await B.page.reload();
+    await play(B.page, 0, { text: decoyOf(NASTYA, 0), bet: 3 });
+    for (const p of [A.page, B.page]) { await openRound(p, 0); await nextRound(p, 0); }
+    expect(await chips(A.page)).toEqual([17, 8]);
+    expect(await chips(B.page)).toEqual([8, 17]);
+    await expect(openPieces(A.page)).toHaveCount(1);
     await A.ctx.close(); await B.ctx.close();
   });
 });
@@ -458,6 +483,7 @@ test.describe('4.5 security', () => {
     const claims = JSON.parse(Buffer.from(tokens[0].split('.')[1], 'base64url').toString());
     expect(claims.role).toBe('anon');
     expect(html).not.toMatch(/service_role|sb_secret_/);
+    expect(html).toContain('content="noindex,nofollow"');
   });
 });
 
@@ -504,9 +530,9 @@ test.describe('4.6 UX and accessibility', () => {
     const ring = await A.page.evaluate(() => { const s = getComputedStyle(document.activeElement); return [document.activeElement.getAttribute('role'), s.outlineStyle, s.outlineWidth]; });
     expect.soft(ring).toEqual(['radio', 'solid', '3px']);
 
-    await A.page.getByRole('button', { name: /^Иду на/ }).click();
+    await A.page.getByRole('button', { name: /^Ставлю/ }).click();
     await B.page.locator('.opt[role=radio]').first().click();
-    await B.page.getByRole('button', { name: /^Иду на/ }).click();
+    await B.page.getByRole('button', { name: /^Ставлю/ }).click();
     await openRound(A.page, 0);
     expect.soft(await noScroll(A.page), 'reveal fits 360px').toBe(true);
     expect.soft(await contrastFails(A.page), 'reveal contrast').toEqual([]);
@@ -522,7 +548,7 @@ test.describe('4.6 UX and accessibility', () => {
     expect.soft(await dashes(page)).toBe(0);
     await fillSetup(page, LONG_A);
     await submit(page);
-    await expect(page.locator('h1')).toContainText('Ставки сделаны');
+    await expect(page.locator('h1')).toContainText('Ты в игре');
     expect.soft(await noScroll(page), 'waiting screen fits 360px').toBe(true);
     await ctx.close();
   });
