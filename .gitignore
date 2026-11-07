@@ -2,3 +2,4 @@ node_modules/
 test-results/
 playwright-report/
 tests/.game-ids.txt
+tests/cleanup.sql

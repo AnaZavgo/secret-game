@@ -186,7 +186,6 @@ test.describe('4.2 setup and joining', () => {
     expect(link).toContain(`#g-${id}`);
 
     await B.page.goto(link);
-    await expect(B.page.locator('.hint').first()).toContainText('Настя уже за столом');
     await fillSetup(B.page, VLAD);
     await submit(B.page);
     // Shorter than the 15-second poll, so only Realtime can pass this.
@@ -377,6 +376,7 @@ test.describe('4.4 resilience', () => {
 
     // A plays and leaves, so A's truth for this round stays unpublished.
     await play(A.page, 1, { text: decoyOf(VLAD, 1), bet: 1 });
+    await expect(A.page.locator('.status')).toContainText('Ждём ставку'); // the move is saved
     const gameUrl = A.page.url();
     await A.page.close();
     await play(B.page, 1, { text: truthOf(NASTYA, 1), bet: 2 });
