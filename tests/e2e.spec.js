@@ -111,7 +111,7 @@ test.describe('4.1 smoke', () => {
   test('landing, fonts, client, sign-in, create', async ({ browser }) => {
     const { ctx, page } = await newContext(browser);
     await page.goto('/');
-    await expect(page.locator('h1')).toContainText('Покер');
+    await expect(page.locator('h1')).toHaveText('Поиграем?');
     await page.evaluate(() => document.fonts.ready);
     const fonts = await page.evaluate(() => [...document.fonts].filter(f => f.status === 'loaded').map(f => f.family.replace(/"/g, '')));
     expect(fonts).toContain('Bricolage Grotesque');

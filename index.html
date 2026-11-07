@@ -309,7 +309,7 @@ function inviteLink() { return location.origin + location.pathname + "#g-" + GID
 function renderLanding() {
   document.getElementById("app").innerHTML = `
   <section class="lead enter">
-    <h1>Покер на&nbsp;правду.</h1>
+    <h1>Поиграем?</h1>
     <p class="hint">Игра для двоих. Угадывай ответы, ставь фишки и выигрывай кусочки чужого секрета.</p>
     <button class="btn hot" type="button" id="create">Создать игру</button>
     <p class="note">Ты получишь приватную ссылку. Отправь её одному человеку.</p>
@@ -444,7 +444,7 @@ function rules() {
   return `<details><summary>Правила</summary><ol>
     <li>5 раундов, вопросы с каждым разом смелее. У каждого на старте ${START} фишек.</li>
     <li>На свой вопрос ты пишешь правду и два ложных ответа. Второй игрок видит все три вперемешку.</li>
-    <li>Он выбирает вариант и ставит фишки. Угадал: плюс двойная ставка и кусочек твоего секрета. Ошибся: его ставка уходит тебе. Угадал: ты тоже получаешь 1 фишку, потому что тебя поняли.</li>
+    <li>Второй игрок выбирает вариант и ставит фишки. Верный выбор: плюс двойная ставка и кусочек твоего секрета, а ты получаешь 1 фишку, потому что тебя поняли. Промах: ставка уходит тебе.</li>
     <li>Ходы закрыты, пока оба не поставят. Потом раунд вскрывается одновременно.</li>
     <li>Финальный раунд ва-банк: ставка до 10 и выигрыш тройной.</li>
     <li>Один пас за игру: пропусти раунд без ставки.</li>
@@ -461,7 +461,7 @@ function screen() {
     if (others.length >= 2) return `<section class="lead"><h1>Стол занят</h1><p class="hint">Здесь уже играют двое.</p></section>`;
     return setup();
   }
-  if (!vault) return `<section class="lead"><h1>Тайник не найден</h1><p class="hint">Твои карты хранятся только на устройстве, с которого ты сел(а) за стол. Открой ссылку там, в том же браузере.</p></section>`;
+  if (!vault) return `<section class="lead"><h1>Тайник не найден</h1><p class="hint">Твои карты хранятся только на устройстве, с которого ты ${gf(m, "сел", "села")} за стол. Открой ссылку там, в том же браузере.</p></section>`;
   if (!opp()) return waiting();
   return game();
 }
@@ -479,7 +479,7 @@ function setup() {
   const ls = LAYERS.map((l, i) => field("l" + i, `${i + 1}. ${l}`, { ph: LAYER_HINTS[i], rows: i === 3 ? 5 : 1, max: 2000 })).join("");
   return `
   <section class="lead enter">
-    <h1>Покер на&nbsp;правду.</h1>
+    <h1>Поиграем?</h1>
     <p class="hint">${o ? `${esc(o.name)} уже за столом и ждёт тебя.` : "Угадывай ответы, ставь фишки и выигрывай кусочки чужого секрета."}</p>
   </section>
   <form id="setup" novalidate>
@@ -494,12 +494,12 @@ function setup() {
     </section>
     <section>
       <h2>Твои карты</h2>
-      <p class="hint">Пиши ложь, в которую он поверит. Каждый его промах приносит тебе его ставку.</p>
+      <p class="hint">Пиши ложь, в которую поверит второй игрок. Каждый промах приносит тебе ставку.</p>
       ${blocks}
     </section>
     <section>
       <h2>Твой секрет на кону</h2>
-      <p class="hint">Каждое его попадание открывает следующий кусочек.</p>
+      <p class="hint">Каждое попадание второго игрока открывает следующий кусочек.</p>
       ${ls}
       ${formErr ? `<p class="err" role="alert">${esc(formErr)}</p>` : ""}
       <button class="btn hot" type="submit" ${view.busy === "join" ? "disabled" : ""}>${view.busy === "join" ? "Раздаю…" : "Сесть за стол"}</button>
@@ -513,7 +513,7 @@ function waiting() {
   return `
   <section class="lead enter">
     <h1>Ставки сделаны, ${esc(m.name)}</h1>
-    <p class="hint">Отправь второму игроку эту ссылку. Игра начнётся, когда он сядет за стол.</p>
+    <p class="hint">Отправь второму игроку эту ссылку. Игра начнётся, когда вы оба будете за столом.</p>
     <div class="lot" style="margin-top:16px"><span style="overflow-wrap:anywhere">${esc(inviteLink())}</span></div>
     <button class="btn hot" type="button" data-act="copy">Скопировать ссылку</button>
     <div class="status" role="status"><span class="pulse" aria-hidden="true"></span>Ждём соперника…</div>
