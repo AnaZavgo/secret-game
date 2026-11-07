@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light">
 <meta name="theme-color" content="#fafaf9">
-<title>Секрет за секрет</title>
+<title>Поиграем?</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Space+Mono:wght@400;700&display=swap">
@@ -28,9 +28,7 @@
   .skip:focus{left:12px;top:12px;background:var(--card);padding:8px 12px;border-radius:var(--r-ctl);z-index:10}
 
   header{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:22px}
-  .brand{font-size:20px;font-weight:800;letter-spacing:-.03em}
-  .brand span{color:var(--accent-text)}
-  .round-tag{font:600 13px var(--mono);letter-spacing:.08em;color:var(--muted)}
+  .round-tag{font:600 13px var(--mono);letter-spacing:.08em;color:var(--muted);margin-left:auto}
 
   h1{font-size:clamp(36px,10vw,52px);font-weight:800;letter-spacing:-.045em;line-height:1.02;margin:0 0 12px;text-wrap:balance}
   h2{font-size:22px;font-weight:700;letter-spacing:-.025em;line-height:1.2;margin:0 0 6px;text-wrap:balance}
@@ -179,8 +177,6 @@
     --shadow:4px 4px 0 var(--ink);
   }
   body{font-family:"Bricolage Grotesque",system-ui,sans-serif}
-  .brand{font-size:22px;font-weight:800;letter-spacing:-.04em}
-  .brand span{display:inline-block;background:var(--ink);color:var(--paper);padding:0 6px;border-radius:6px;transform:rotate(-4deg)}
   h1{font-weight:800;letter-spacing:-.05em;font-size:clamp(42px,12vw,64px);line-height:.95}
   h2{font-weight:800;letter-spacing:-.035em}
   .q{font-weight:800;letter-spacing:-.03em;font-size:28px;line-height:1.1}
@@ -267,7 +263,7 @@
   @keyframes wobble{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(3deg)}}
   @keyframes bump{0%{transform:scale(1)}40%{transform:scale(1.25)}100%{transform:scale(1)}}
   @media (prefers-reduced-motion: reduce){
-    .table,.opt,.piece,.brand span,.lot .x,.qnum,.chipbtn[aria-pressed="true"]{transform:none!important}
+    .table,.opt,.piece,.lot .x,.qnum,.chipbtn[aria-pressed="true"]{transform:none!important}
     .stepper output.bump{animation:none}
   }
 </style>
@@ -275,7 +271,7 @@
 <body>
 <a class="skip" href="#app">К игре</a>
 <main>
-  <header><div class="brand">Секрет <span>за</span> секрет</div><div class="round-tag" id="rtag"></div></header>
+  <header><div class="round-tag" id="rtag"></div></header>
   <div id="app" aria-live="polite"></div>
 </main>
 <script type="module">
