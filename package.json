@@ -1,0 +1,25 @@
+{
+  "name": "secret-game",
+  "version": "1.0.0",
+  "description": "A private two-player guessing game. One static file, `index.html`, with no build step.",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AnaZavgo/secret-game.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/AnaZavgo/secret-game/issues"
+  },
+  "homepage": "https://github.com/AnaZavgo/secret-game#readme",
+  "private": true,
+  "devDependencies": {
+    "@playwright/test": "^1.65.0",
+    "@supabase/supabase-js": "^2.45.4"
+  }
+}

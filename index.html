@@ -252,6 +252,8 @@
   .qnum{display:inline-block;background:var(--ink);color:var(--paper);font:700 12px var(--mono);padding:2px 8px;border-radius:999px;transform:rotate(-2deg)}
   .round-tag{font:700 13px var(--mono);color:var(--ink);border:2px solid var(--ink);border-radius:999px;padding:2px 10px}
   .round-tag:empty{display:none}
+  .board>div{min-width:0}
+  h1,h2,.q,.hint,.lot span,.note,.status,.res-h,.payout{overflow-wrap:anywhere}
   .skeleton i{background:var(--sunk);border:2px solid var(--sunk)}
 
   @media (prefers-reduced-motion: no-preference){
@@ -266,6 +268,7 @@
   @keyframes bump{0%{transform:scale(1)}40%{transform:scale(1.25)}100%{transform:scale(1)}}
   @media (prefers-reduced-motion: reduce){
     .table,.opt,.piece,.brand span,.lot .x,.qnum,.chipbtn[aria-pressed="true"]{transform:none!important}
+    .stepper output.bump{animation:none}
   }
 </style>
 </head>
@@ -536,19 +539,25 @@ function game() {
   const rtag = document.getElementById("rtag");
   rtag.textContent = c.finished && !pending ? "Финал" : `Раунд ${(pending ? pending.i : c.round) + 1}/${ROUNDS}`;
 
-  let out = board(c);
+  /* While a round is sealed, show the score and pieces from before it, so nothing spoils the reveal. */
+  const sealed = pending && view.reveal !== pending.i ? pending.i : -1;
+  const prev = sealed > 0 ? c.rounds[sealed - 1] : { mc: START, oc: START };
+  const before = sealed >= 0 ? c.rounds.slice(0, sealed) : null;
+  const shown = (pieces, p, hit) => before && !p.surrendered ? pieces.slice(0, Math.min(NL, before.filter(hit).length)) : pieces;
+
+  let out = board(sealed >= 0 ? { ...c, mc: prev.mc, oc: prev.oc } : c);
   if (pending) out += revealHtml(c, pending);
   else if (c.finished) out += finishedHtml(c);
   else out += roundHtml(c);
 
-  const oPieces = o.pieces || [];
+  const oPieces = shown(o.pieces || [], o, r => r.done && !r.mp.pass && r.mp.idx === r.ot);
   out += `<section>
     <h2>${esc(cap(o.label || "секрет"))}: ${esc(o.name)}</h2>
     <p class="hint">Выиграно ${oPieces.length} из ${NL}</p>
     ${secretHtml(oPieces)}
   </section>`;
 
-  const mPieces = (m.pieces || []).length;
+  const mPieces = shown(m.pieces || [], m, r => r.done && !r.op.pass && r.op.idx === r.mt).length;
   let mine = `<section><h2>Твой секрет: ${esc(m.label || "секрет")}</h2><p class="hint">${esc(o.name)} ${gf(o, "выиграл", "выиграла")} ${mPieces} из ${NL}</p>
     <div class="meter" role="img" aria-label="Открыто ${mPieces} из ${NL}">${LAYERS.map((_, i) => `<i class="${i < mPieces ? "on" : ""}"></i>`).join("")}</div>`;
   if (!m.surrendered && mPieces < NL && !c.finished) {
