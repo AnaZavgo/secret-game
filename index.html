@@ -150,6 +150,7 @@
   details summary::after{content:"+";font:600 20px var(--mono);color:var(--muted);transition:transform .2s var(--ease)}
   details[open] summary::after{transform:rotate(45deg)}
   details summary:focus-visible{outline:2px solid var(--ink);outline-offset:4px}
+  .backup .hint{margin:12px 0}
   details ol{margin:12px 0 0;padding-left:20px;color:var(--muted);display:grid;gap:8px}
 
   .skeleton{display:grid;gap:12px}
@@ -284,12 +285,31 @@ const SUPABASE_URL = "https://aesdxefgousmzgxzuqni.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFlc2R4ZWZnb3VzbXpneHp1cW5pIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2MjU5NjMsImV4cCI6MjA5OTIwMTk2M30.zqL6JwkopA_GAW2OkaSvzIGwXptJBcnR-wsASyO5Od4";
 
 /* Each game lives at its own private link: site/#g-<random id>. */
-const GID = (location.hash.match(/^#g-([a-z0-9]{12,})$/) || [])[1] || "";
+/* A personal backup link adds &k=<key>: it brings your seat and answers back on a new phone. */
+const HASH = location.hash.match(/^#g-([a-z0-9]{12,})(?:&k=([a-z0-9]{32,64}))?$/) || [];
+const GID = HASH[1] || "", KEY_IN_URL = HASH[2] || "";
 let seatRef = null;
 
 /* The true-answer positions and the secret never leave this phone until they are won. */
 function loadVault() { try { const v = JSON.parse(localStorage.getItem("ssz-vault-" + GID) || "null"); return v && Array.isArray(v.truthIdx) ? v : null; } catch (e) { return null; } }
 function saveVault(v) { try { localStorage.setItem("ssz-vault-" + GID, JSON.stringify(v)); } catch (e) {} vault = v; if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); }
+
+/* The vault goes to the server only encrypted with the backup key, which the server never sees. */
+const b64 = u => btoa(String.fromCharCode(...u)), unb64 = t => Uint8Array.from(atob(t), c => c.charCodeAt(0));
+async function aesKey(k) { const h = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("ssz-enc:" + k)); return crypto.subtle.importKey("raw", h, "AES-GCM", false, ["encrypt", "decrypt"]); }
+async function sealVault(v, k) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, await aesKey(k), new TextEncoder().encode(JSON.stringify(v))));
+  const out = new Uint8Array(12 + ct.length); out.set(iv); out.set(ct, 12); return b64(out);
+}
+async function openVault(blob, k) {
+  const u = unb64(blob);
+  return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: u.slice(0, 12) }, await aesKey(k), u.slice(12))));
+}
+function loadKey() { try { return localStorage.getItem("ssz-key-" + GID) || ""; } catch (e) { return ""; } }
+function saveKey(k, ok) { try { localStorage.setItem("ssz-key-" + GID, k); if (ok) localStorage.setItem("ssz-keyok-" + GID, k); } catch (e) {} }
+function keyIsSaved() { try { const k = loadKey(); return !!k && localStorage.getItem("ssz-keyok-" + GID) === k; } catch (e) { return false; } }
+function keyLink() { return location.origin + location.pathname + "#g-" + GID + "&k=" + loadKey(); }
 
 /* Load the Supabase client from the first CDN that answers. */
 async function loadSupabase() {
@@ -300,7 +320,7 @@ async function loadSupabase() {
   throw new Error("Supabase client unavailable");
 }
 
-function newGameId() { const a = new Uint8Array(12); crypto.getRandomValues(a); return Array.from(a, b => "abcdefghijkmnpqrstuvwxyz23456789"[b % 32]).join(""); }
+function newGameId(n = 12) { const a = new Uint8Array(n); crypto.getRandomValues(a); return Array.from(a, b => "abcdefghijkmnpqrstuvwxyz23456789"[b % 32]).join(""); }
 function inviteLink() { return location.origin + location.pathname + "#g-" + GID; }
 
 function renderLanding() {
@@ -334,7 +354,7 @@ const maxBet = (i, chips) => Math.max(1, Math.min(isFinal(i) ? 10 : 5, chips));
 
 let db = null, user = null, me = null;
 let docs = {}, vault = null, vaultLoaded = false, loaded = false, err = "", formErr = "", errField = "";
-let writing = false, lastSig = "", lastScreen = "";
+let writing = false, lastSig = "", lastScreen = "", keyReady = false;
 const seenPieces = { opp: -1 };
 const view = { confirmSurrender: false, busy: "", pick: {}, bet: {}, reveal: null, opened: loadOpened() };
 const drafts = {};
@@ -404,7 +424,7 @@ function merge(a, b) {
 
 function tick() {
   sync();
-  const sig = JSON.stringify([docs, vaultLoaded, !!vault, loaded, err, formErr, view]);
+  const sig = JSON.stringify([docs, vaultLoaded, !!vault, loaded, err, formErr, view, keyReady]);
   if (sig !== lastSig) { lastSig = sig; render(); }
 }
 
@@ -450,16 +470,25 @@ function rules() {
   </ol></details>`;
 }
 
+function backup(open) {
+  if (!keyReady) return "";
+  return `<details class="backup"${open ? " open" : ""}><summary>Твоя запасная ссылка</summary>
+    <p class="hint">Если телефон сотрёт данные сайта или ты сменишь телефон, открой эту ссылку, и игра вернёт твоё место и ответы. Сохрани её себе, например в Избранное в Telegram. Никому не отправляй: по ней можно играть за тебя.</p>
+    <button class="btn ghost" type="button" data-act="copykey">Скопировать запасную ссылку</button>
+  </details>`;
+}
+
 function screen() {
   document.getElementById("rtag").textContent = "";
   if (err) return `<section class="lead enter"><h1>Не открывается</h1><p class="hint">${esc(err)}</p></section>`;
   if (!loaded || !vaultLoaded) return `<div aria-busy="true"><div class="skeleton"><i></i><i></i><i></i></div><span class="sr">Загрузка…</span></div>`;
   const m = docs[me], others = Object.keys(docs).filter(id => id !== me);
   if (!m) {
+    if (vault) return `<section class="lead"><h1>Игра открыта на другом телефоне</h1><p class="hint">Твоё место перенесли по запасной ссылке. Играй там, где открыта эта ссылка.</p></section>`;
     if (others.length >= 2) return `<section class="lead"><h1>Тут уже играют</h1><p class="hint">В этой игре уже двое.</p></section>`;
     return setup();
   }
-  if (!vault) return `<section class="lead"><h1>Твоих ответов тут нет</h1><p class="hint">Они лежат только на том устройстве и в том браузере, где ты их ${gf(m, "писал", "писала")}. Открой ссылку там.</p></section>`;
+  if (!vault) return `<section class="lead"><h1>Твоих ответов тут нет</h1><p class="hint">Они лежат только на том устройстве и в том браузере, где ты их ${gf(m, "писал", "писала")}. Открой игру там или по своей запасной ссылке.</p></section>`;
   if (!opp()) return waiting();
   return game();
 }
@@ -516,6 +545,7 @@ function waiting() {
     <button class="btn hot" type="button" data-act="copy">Скопировать ссылку</button>
     <div class="status" role="status"><span class="pulse" aria-hidden="true"></span>Ждём второго игрока…</div>
   </section>
+  ${backup(true)}
   ${rules()}`;
 }
 
@@ -564,7 +594,7 @@ function game() {
          <div class="row"><button class="btn ghost" type="button" data-act="noSurrender">Отмена</button><button class="btn" type="button" data-act="surrender">Открыть всё</button></div>`
       : `<button class="btn ghost" type="button" data-act="askSurrender">Сдаться и открыть секрет</button>`;
   }
-  return out + mine + `</section>` + rules();
+  return out + mine + `</section>` + backup(false) + rules();
 }
 
 function secretHtml(pieces) {
@@ -694,10 +724,13 @@ document.addEventListener("submit", async e => {
   if (el >= 0) return fail(`Заполни кусочек ${el + 1} своего секрета.`, "l" + el);
   try {
     view.busy = "join"; tick();
-    saveVault({ truthIdx, layers });
     vault = { truthIdx, layers };
+    saveVault(vault);
     await seatRef().set({ name, g: drafts.g, label: label || "секрет", joinedAt: Date.now(), options, picks: {}, truth: {}, pieces: [], surrendered: false });
-  } catch (x) { formErr = saveErr(x); }
+  } catch (x) {
+    formErr = saveErr(x);
+    if (!docs[me]) { vault = null; try { localStorage.removeItem("ssz-vault-" + GID); } catch (e) {} }
+  }
   view.busy = ""; tick();
 });
 
@@ -710,6 +743,7 @@ document.addEventListener("click", async e => {
   formErr = "";
   const c = docs[me] && opp() ? calc() : null;
   try {
+    if (act === "copykey") { try { await navigator.clipboard.writeText(keyLink()); b.textContent = "Скопировано"; } catch (e2) { b.textContent = "Не скопировалось, попробуй ещё раз"; } return; }
     if (act === "copy") { try { await navigator.clipboard.writeText(inviteLink()); b.textContent = "Скопировано"; } catch (e2) { b.textContent = "Скопируй ссылку вручную"; } return; }
     else if (act === "gender") { drafts.g = b.dataset.v; lastSig = ""; }
     else if (act === "pick") { view.pick[i] = +b.dataset.k2; }
@@ -756,6 +790,7 @@ function saveErr(x) {
     me = session.user.id;
   } catch (e) { console.error(e); clearTimeout(timer); err = "Не получилось подключиться к игре. Обнови страницу."; return tick(); }
 
+  let ensureKey = null;
   const fetchAll = async () => {
     const { data, error } = await supa.from("ssz_players").select("uid,data").eq("game_id", GID);
     if (error) throw error;
@@ -764,6 +799,7 @@ function saveErr(x) {
     docs = next; loaded = true; clearTimeout(timer);
     if (err.startsWith("Не получается")) err = "";
     tick();
+    if (vaultLoaded && ensureKey) ensureKey();
   };
   const seat = {
     set: async d => {
@@ -780,8 +816,46 @@ function saveErr(x) {
     }
   };
   db = seat; seatRef = () => seat;
-  vault = loadVault(); vaultLoaded = true;
+  vault = loadVault();
   try { await fetchAll(); } catch (e) { console.error(e); err = "Не получилось загрузить игру. Обнови страницу."; return tick(); }
+
+  /* Opened with a backup link: take the seat over to this browser and decrypt the answers. */
+  if (KEY_IN_URL) {
+    if (!docs[me] || !vault) {
+      const { data, error } = await supa.rpc("ssz_reclaim", { p_game: GID, p_key: KEY_IN_URL });
+      if (error) {
+        console.error(error);
+        err = /bad_key/.test(error.message) ? "Эта запасная ссылка не подходит. Проверь, что она скопирована целиком." :
+              /already_seated/.test(error.message) ? "Это не твоя запасная ссылка: ты уже в этой игре." :
+              "Не получилось вернуть игру. Проверь интернет и открой ссылку ещё раз.";
+        vaultLoaded = true; return tick();
+      }
+      try { saveVault(await openVault(data, KEY_IN_URL)); } catch (e) { console.error(e); err = "Эта запасная ссылка не подходит."; vaultLoaded = true; return tick(); }
+      saveKey(KEY_IN_URL, true);
+      try { await fetchAll(); } catch (e) {}
+      /* Rounds already played were seen on the old phone: do not replay them. */
+      try { if (docs[me] && opp()) { view.opened = calc().rounds.filter(r => r.done).map(r => r.i); saveOpened(); } } catch (e) {}
+    }
+    history.replaceState(null, "", location.pathname + "#g-" + GID);
+  }
+  vaultLoaded = true;
+
+  /* Make sure the server holds the encrypted answers for this seat, so the backup link works. */
+  let keyBusy = false;
+  ensureKey = async () => {
+    if (keyBusy || !docs[me] || !vault) return;
+    if (keyIsSaved()) { if (!keyReady) { keyReady = true; tick(); } return; }
+    keyBusy = true;
+    try {
+      const k = loadKey() || newGameId(32);
+      saveKey(k, false);
+      const { error } = await supa.rpc("ssz_save_key", { p_game: GID, p_key: k, p_blob: await sealVault(vault, k) });
+      if (error) throw error;
+      saveKey(k, true); keyReady = true; tick();
+    } catch (e) { console.warn("backup key not saved yet", e); }
+    keyBusy = false;
+  };
+  ensureKey();
   supa.channel("ssz-" + GID)
     .on("postgres_changes", { event: "*", schema: "public", table: "ssz_players", filter: "game_id=eq." + GID }, () => fetchAll().catch(console.error))
     .subscribe();

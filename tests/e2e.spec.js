@@ -564,3 +564,59 @@ test.describe('4.6 UX and accessibility', () => {
     await A.ctx.close(); await B.ctx.close();
   });
 });
+
+test.describe('backup link', () => {
+  test('brings the seat and answers back in a new browser; a wrong key is refused', async ({ browser }) => {
+    const { A, B, id } = await seatTwo(browser, NASTYA, VLAD, { permissions: ['clipboard-read', 'clipboard-write'] });
+    await play(A.page, 0, { text: truthOf(VLAD, 0), bet: 2 });
+    await play(B.page, 0, { text: decoyOf(NASTYA, 0), bet: 3 });
+    for (const p of [A.page, B.page]) { await openRound(p, 0); await nextRound(p, 0); }
+
+    // The link appears once the encrypted answers are on the server.
+    await expect(A.page.locator('details.backup summary')).toHaveText('Твоя запасная ссылка');
+    const key = await A.page.evaluate(g => localStorage.getItem('ssz-key-' + g), id);
+    expect(key).toMatch(/^[a-z0-9]{32}$/);
+    const link = `/#g-${id}&k=${key}`;
+
+    // The server holds only the hash and ciphertext: no answer text in plain sight.
+    const { c } = await anon();
+    expect((await c.from('ssz_keys').select('*')).error).not.toBeNull();
+
+    // Wrong key.
+    const wrong = await newContext(browser);
+    await wrong.page.goto(`/#g-${id}&k=${'a'.repeat(32)}`);
+    await expect(wrong.page.locator('h1')).toHaveText('Не открывается');
+    await expect(wrong.page.locator('.hint')).toContainText('не подходит');
+    await wrong.ctx.close();
+
+    // B opening A's link stays B (the server also refuses: see the SQL test).
+    await B.page.goto(link);
+    await expect(B.page.locator('#rtag')).toHaveText('Раунд 2/5');
+    await expect(B.page.locator('.board .me .who')).toContainText(VLAD.name);
+
+    // A new phone: same score, same round, and A can keep playing.
+    const phone = await newContext(browser);
+    await phone.page.goto(link);
+    await expect(phone.page.locator('#rtag')).toHaveText('Раунд 2/5');
+    expect(phone.page.url()).not.toContain('&k=');
+    expect(await chips(phone.page)).toEqual(await chips(A.page));
+    await expect(phone.page.locator('.board .me .who')).toContainText(NASTYA.name);
+    await play(phone.page, 1, { text: truthOf(VLAD, 1), bet: 1 });
+    await play(B.page, 1, { text: decoyOf(NASTYA, 1), bet: 1 });
+    await openRound(phone.page, 1);
+    await expect(phone.page.locator('.res-h').first()).toBeVisible();
+    // The truth was revealed from the decrypted vault, so B's miss counts.
+    await openRound(B.page, 1);
+    await expect(B.page.locator('.res-h').first()).toBeVisible();
+
+    // The old phone now says the game moved.
+    await A.page.reload();
+    await expect(A.page.locator('h1')).toHaveText('Игра открыта на другом телефоне');
+
+    // Opening the same link again on the new phone changes nothing.
+    await phone.page.goto(link);
+    await expect(phone.page.locator('.board .me .who')).toContainText(NASTYA.name);
+    expect(phone.page.errors).toEqual([]);
+    await phone.ctx.close(); await A.ctx.close(); await B.ctx.close();
+  });
+});
